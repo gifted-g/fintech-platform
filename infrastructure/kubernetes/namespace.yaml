@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fintech-platform
+  labels:
+    name: fintech-platform
+    environment: production
