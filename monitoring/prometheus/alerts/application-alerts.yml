@@ -1,0 +1,114 @@
+groups:
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "High error rate detected in {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has error rate above 5% (current: {{ $value | humanizePercentage }})"
+
+      # Slow Response Time
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow response time in {{ $labels.service }}"
+          description: "95th percentile response time for {{ $labels.service }} is above 500ms (current: {{ $value }}s)"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job=~"credit-scoring|risk-engine|user-verification|fraud-detection|notification"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          (
+            sum(rate(container_cpu_usage_seconds_total{namespace="fintech-platform"}[5m])) by (pod)
+            /
+            sum(container_spec_cpu_quota{namespace="fintech-platform"} / container_spec_cpu_period{namespace="fintech-platform"}) by (pod)
+          ) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High CPU usage in {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} CPU usage is above 80% (current: {{ $value | humanizePercentage }})"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            sum(container_memory_working_set_bytes{namespace="fintech-platform"}) by (pod)
+            /
+            sum(container_spec_memory_limit_bytes{namespace="fintech-platform"}) by (pod)
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High memory usage in {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} memory usage is above 85% (current: {{ $value | humanizePercentage }})"
+
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: |
+          (
+            sum(database_connections_in_use) by (service)
+            /
+            sum(database_connections_max) by (service)
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Database connection pool near exhaustion for {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is using {{ $value | humanizePercentage }} of available database connections"
+
+      # High Kafka Consumer Lag
+      - alert: HighKafkaConsumerLag
+        expr: kafka_consumer_lag > 10000
+        for: 10m
+        labels:
+          severity: warning
+          category: messaging
+        annotations:
+          summary: "High Kafka consumer lag"
+          description: "Consumer group {{ $labels.consumer_group }} for topic {{ $labels.topic }} has lag of {{ $value }} messages"
+
+      # Certificate Expiration
+      - alert: CertificateExpiringSoon
+        expr: (cert_exporter_not_after - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "Certificate {{ $labels.cert_name }} will expire in {{ $value }} days"
